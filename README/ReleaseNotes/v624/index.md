@@ -40,14 +40,16 @@ The following people have contributed to this new version:
  Andrea Sciandra, SCIPP-UCSC/Atlas, \
  Oksana Shadura, UNL/CMS,\
  Enric Tejedor Saavedra, CERN/SFT,\
+ Christian Tacke, GSI, \
  Matevz Tadel, UCSD/CMS,\
  Vassil Vassilev, Princeton/CMS,\
  Wouter Verkerke, NIKHEF/Atlas,\
- Stefan Wunsch, CERN/SFT
+ Stefan Wunsch, CERN/SFT,\
+ Anirudh Dagar, CERN-HSF/GSoC
 
 ## Deprecation and Removal
 
-- [`RooAbsReal::evaluateBatch()`](https://root.cern.ch/doc/v624/classRooAbsReal.html#a261580dfe94f2b107f9b9a77cad78a62) has been removed in favour of the faster evaluateSpan(). See section "RooFit Libraries" for instructions on how to use [`RooAbsReal::evaluateSpan()`](https://root.cern.ch/doc/v624/classRooAbsReal.html#a1e5129ffbc63bfd04c01511fd354b1b8).
+- [`RooAbsReal::evaluateBatch()`](https://root.cern/doc/v624/classRooAbsReal.html#a261580dfe94f2b107f9b9a77cad78a62) has been removed in favour of the faster evaluateSpan(). See section "RooFit Libraries" for instructions on how to use [`RooAbsReal::evaluateSpan()`](https://root.cern/doc/v624/classRooAbsReal.html#a1e5129ffbc63bfd04c01511fd354b1b8).
 - `TTreeProcessorMT::SetMaxTasksPerFilePerWorker` has been deprecated in favour of `TTreeProcessorMT::SetTasksPerWorkerHint`.
 
 ## Core Libraries
@@ -71,6 +73,20 @@ or by passing the appropriate parameter to executors' constructors, as in
 
 See the discussion at [ROOT-11014](https://sft.its.cern.ch/jira/browse/ROOT-11014) for more context.
 
+### Dynamic Path: `ROOT_LIBRARY_PATH`
+
+A new way to set ROOT's "Dynamic Path" was added: the
+environment variable `ROOT_LIBRARY_PATH`.  On Unix it should contain a colon
+separated list of paths, on Windows a semicolon separated list. It is
+intended to be cross platform and to be specific to ROOT (and thus not
+interfere with the system's shared linker).
+The final "Dynamic Path" is now composed of these sources in order:
+1. `ROOT_LIBRARY_PATH` environment variable
+2. System specific shared linker environment variables like
+   `LD_LIBRARY_PATH`, `LIBPATH`, or `PATH`.
+3. Setting from rootrc
+4. ROOT's builtin library directory
+
 ### Interpreter
 
 - cling's LLVM is upgraded to version 9.0
@@ -90,12 +106,13 @@ See the discussion at [ROOT-11014](https://sft.its.cern.ch/jira/browse/ROOT-1101
 - `TTree` now supports the inclusion of leaves of types `long` and `unsigned long` (and therefore also `std::size_t` on most systems) also for branches in "leaflist mode". The corresponding leaflist letters are 'G' and 'g'.
 - when looping over a `TTree` with a friend with a larger number of entries, `TTreeReader` now ends the event loop when the entries in the _main_ `TTree` are exhausted, consistently with other interfaces. See [#6518](https://github.com/root-project/root/issues/6518) for more details.
 - `TTreeProcessorMT::SetMaxTasksPerFilePerWorker` is now deprecated in favor of the more flexible and newly introduced `TTreeProcessorMT::SetTasksPerWorkerHint`. See the relevant entries in our reference guide for more information.
+- The name of the sub-branches of a split collection no longer have 2 consecutive dots if the top level branche name has a trailing dot.  The name of the collection's index leaf also no longer include the dot. For example for "t." the names where "t._" and "t..fValue" and are now "t_" and "t.fValue". 
 
 ## RDataFrame
 
 ### New features
 
-- Introduce `ROOT::RDF::RunGraphs`, which allows to compute the results of multiple `RDataFrame`s (or better, multiple independent computation graphs) concurrently while sharing the same thread pool. The computation may be more efficient than running the `RDataFrame`s sequentially if an analysis consists of several computation graphs that individually do not fully utilize the available resources. See e.g. [this tutorial](https://root.cern.ch/doc/master/df104__HiggsToTwoPhotons_8py.html) for an example usage.
+- Introduce `ROOT::RDF::RunGraphs`, which allows to compute the results of multiple `RDataFrame`s (or better, multiple independent computation graphs) concurrently while sharing the same thread pool. The computation may be more efficient than running the `RDataFrame`s sequentially if an analysis consists of several computation graphs that individually do not fully utilize the available resources. See e.g. [this tutorial](https://root.cern/doc/master/df104__HiggsToTwoPhotons_8py.html) for an example usage.
 - `RDataFrame` now supports reading friend `TTree`s with a `TTreeIndex`, aka "indexed friends". More details at [ROOT-9559](https://sft.its.cern.ch/jira/browse/ROOT-9559).
 - Experimental logging capabilities have been added to `RDataFrame`. To activate logging, define the following variable before creating the `RDataFrame` object: `auto verbosity = ROOT::Experimental::RLogScopedVerbosity(ROOT::Detail::RDF::RDFLogChannel(), ROOT::Experimental::ELogLevel.kInfo);`.
 - With [ROOT-10023](https://sft.its.cern.ch/jira/browse/ROOT-10023) fixed, `RDataFrame` can now read and write certain branches containing unsplit objects, i.e. `TBranchObjects`. More information is available at [ROOT-10022](https://sft.its.cern.ch/jira/browse/ROOT-10022).
@@ -110,9 +127,10 @@ See the discussion at [ROOT-11014](https://sft.its.cern.ch/jira/browse/ROOT-1101
 - For some `TTrees`, `RDataFrame::GetColumnNames` might now returns multiple valid spellings for a given column. For example, leaf `"l"` under branch `"b"` might now be mentioned as `"l"` as well as `"b.l"`, while only one of the two spellings might have been recognized before.
 - Certain RDF-related types in the `ROOT::Detail` and `ROOT::Internal` namespaces have been renamed, most notably `RCustomColumn` is now `RDefine`. This does not impact code that only makes use of entities in the public ROOT namespace, and should not impact downstream code unless it was patching or reusing internal `RDataFrame` types.
 
-### Notable bug fixes
+### Notable bug fixes and improvements
 
 - A critical issue has been fixed that could potentially result in wrong data being silently read in multi-thread runs when an input `TChain` contained more than one `TTree` coming from the _same_ input file. More details are available at [#7143](https://github.com/root-project/root/issues/7143).
+- The start-up time of event loops with large computation graphs with many just-in-time-compiled expressions (e.g. thousands of string `Filter`s and `Define`s) has been greatly reduced. See [the corresponding pull request](https://github.com/root-project/root/pull/7651) for more details.
 
 The full list of bug fixes for this release is available below.
 
@@ -170,6 +188,10 @@ Tests for the Spark backend can be turned ON/OFF with the new build option `test
   `RVec <-> std::vector` conversion rather than writing `RVec`s to disk. Note that, currently, `RVecs` written e.g. in a `TTree` cannot be read back
   using certain ROOT interfaces (e.g. `TTreeReaderArray`, `RDataFrame` and the experimental `RNTuple`). All these limitations will be lifted in v6.26.
 - Portable implementation of the RANLUX++ generator, see [RanluxppEngine](https://root.cern/doc/master/classROOT_1_1Math_1_1RanluxppEngine.html) and [our blog post](https://root.cern/blog/ranluxpp/).
+
+## TMVA
+
+- Introducing TMVA PyTorch Interface, a method to use PyTorch internally with TMVA for deep learning. This can be used as an alternative to PyKeras Interface for complex models providing more flexibility and power.
 
 
 ## RooFit Libraries
@@ -378,6 +400,7 @@ this makes usage of webgui components in public networks more secure.
 ### Enabled WLCG Bearer Tokens support in RDavix
 
 Bearer tokens are part of WLCG capability-based infrastructure with capability-based scheme which uses an infrastructure that describes what the bearer is allowed to do as opposed to who that bearer is. Token discovery procedure are developed according WLCG Bearer Token Discovery specification document (https://github.com/WLCG-AuthZ-WG/bearer-token-discovery/blob/master/specification.md). Short overview:
+
    1. If the `BEARER_TOKEN` environment variable is set, then the value is taken to be the token contents.
    2. If the `BEARER_TOKEN_FILE` environment variable is set, then its value is interpreted as a filename. The contents of the specified file are taken to be the token contents.
    3. If the `XDG_RUNTIME_DIR` environment variable is set, then take the token from the contents of `$XDG_RUNTIME_DIR/bt_u$ID`(this additional location is intended to provide improved security for shared login environments as `$XDG_RUNTIME_DIR` is defined to be user-specific as opposed to a system-wide directory.).

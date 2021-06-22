@@ -27,36 +27,67 @@ template<typename T>
 class RAttrValue : public RAttrBase {
 protected:
 
-   RAttrMap  fDefaults;    ///<!    map with default values
+   T fDefault;            ///<!    default value
 
-   const RAttrMap &GetDefaults() const override { return fDefaults; }
+   RAttrMap CollectDefaults() const override
+   {
+      return RAttrMap().AddValue(GetName(), fDefault);
+   }
 
-   bool IsValue() const override { return true; }
 
 public:
 
-   RAttrValue() = default;
+   RAttrValue() : RAttrBase(""), fDefault() {}
 
-   RAttrValue(RDrawable *drawable, const std::string &name, const T &dflt = T())
+   RAttrValue(RDrawable *drawable, const char *name, const T &dflt = T()) : RAttrBase(drawable, name ? name : ""), fDefault(dflt) { }
+
+   RAttrValue(RAttrBase *parent, const char *name, const T &dflt = T()) : RAttrBase(parent, name ? name : ""), fDefault(dflt) { }
+
+   RAttrValue(const RAttrValue& src) : RAttrBase("")
    {
-      fDefaults.AddValue("", dflt);
-      AssignDrawable(drawable, name);
+      Set(src.Get());
+      fDefault = src.Default();
    }
 
-   RAttrValue(RAttrBase *parent, const std::string &name, const T &dflt = T())
+   T GetDefault() const { return fDefault; }
+
+   void Set(const T &v)
    {
-      fDefaults.AddValue("", dflt);
-      AssignParent(parent, name);
+      if (auto access = EnsureAttr(GetName()))
+         access.attr->AddValue(access.fullname, v);
    }
 
-   void Set(const T &v) { SetValue("", v); }
-   T Get() const { return GetValue<T>(""); }
-   void Clear() { ClearValue(""); }
-   bool Has() const { return HasValue<T>(""); }
+   T Get() const
+   {
+      if (auto v = AccessValue(GetName(), true))
+        return RAttrMap::Value_t::GetValue<T>(v.value);
+
+      return fDefault;
+   }
+
+   const char *GetName() const { return GetPrefix(); }
+
+   void Clear() override { ClearValue(GetName()); }
+
+   bool Has() const
+   {
+      if (auto v = AccessValue(GetName(), true)) {
+         auto res = RAttrMap::Value_t::GetValue<const RAttrMap::Value_t *,T>(v.value);
+         return res ? (res->Kind() != RAttrMap::kNoValue) : false;
+      }
+
+      return false;
+   }
 
    RAttrValue &operator=(const T &v) { Set(v); return *this; }
 
+   RAttrValue &operator=(const RAttrValue &v) { Set(v.Get()); return *this; }
+
    operator T() const { return Get(); }
+
+   friend bool operator==(const RAttrValue& lhs, const RAttrValue& rhs) { return lhs.Get() == rhs.Get(); }
+   friend bool operator!=(const RAttrValue& lhs, const RAttrValue& rhs) { return lhs.Get() != rhs.Get(); }
+
 };
 
 } // namespace Experimental

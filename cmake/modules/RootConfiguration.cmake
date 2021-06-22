@@ -6,7 +6,7 @@
 
 INCLUDE (CheckCXXSourceCompiles)
 
-#---Define a function to do not polute the top level namespace with unneeded variables-----------------------
+#---Define a function not to pollute the top level namespace with unneeded variables-----------------------
 function(RootConfigure)
 
 #---Define all sort of variables to bridge between the old Module.mk and the new CMake equivalents-----------
@@ -225,8 +225,6 @@ set(gfallibdir ${GFAL_LIBRARY_DIR})
 set(gfallib ${GFAL_LIBRARY})
 set(gfalincdir ${GFAL_INCLUDE_DIR})
 
-set(buildmemstat ${value${memstat}})
-
 set(buildalien ${value${alien}})
 set(alienlibdir ${ALIEN_LIBRARY_DIR})
 set(alienlib ${ALIEN_LIBRARY})
@@ -409,11 +407,6 @@ if(vc)
   set(hasvc define)
 else()
   set(hasvc undef)
-endif()
-if(vmc)
-  set(hasvmc define)
-else()
-  set(hasvmc undef)
 endif()
 if(vdt)
   set(hasvdt define)
@@ -640,6 +633,22 @@ else()
    set(has_found_attribute_noinline undef)
 endif()
 
+# We could just check `#ifdef __cpp_lib_hardware_interference_size`, but on at least Mac 11
+# libc++ defines that macro but is missing the actual feature
+# (see https://github.com/llvm/llvm-project/commit/174322c2737d699e199db4762aaf4217305ec465).
+# So we need to "manually" check instead.
+# `#ifdef R__HAS_HARDWARE_INTERFERENCE_SIZE` could be substituted by `#ifdef __cpp_lib_hardware_interference_size`
+# when Mac 11's life has ended (assuming the libc++ fix makes it in the next MacOS version).
+CHECK_CXX_SOURCE_COMPILES("
+#include <new>
+using Check_t = char[std::hardware_destructive_interference_size];
+" found_hardware_interference_size)
+if(found_hardware_interference_size)
+   set(hashardwareinterferencesize define)
+else()
+   set(hashardwareinterferencesize undef)
+endif()
+
 if(root7 AND webgui)
    set(root_browser_class "ROOT::Experimental::RWebBrowserImp")
 else()
@@ -821,7 +830,6 @@ endif()
 set(usercflags ${CMAKE_CXX_FLAGS-CACHED})
 file(REMOVE ${CMAKE_BINARY_DIR}/installtree/root-config)
 configure_file(${CMAKE_SOURCE_DIR}/config/root-config.in ${CMAKE_BINARY_DIR}/installtree/root-config @ONLY NEWLINE_STYLE UNIX)
-configure_file(${CMAKE_SOURCE_DIR}/config/memprobe.in ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/memprobe @ONLY NEWLINE_STYLE UNIX)
 configure_file(${CMAKE_SOURCE_DIR}/config/thisroot.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/thisroot.sh @ONLY NEWLINE_STYLE UNIX)
 configure_file(${CMAKE_SOURCE_DIR}/config/thisroot.csh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/thisroot.csh @ONLY NEWLINE_STYLE UNIX)
 configure_file(${CMAKE_SOURCE_DIR}/config/thisroot.fish ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/thisroot.fish @ONLY NEWLINE_STYLE UNIX)
@@ -867,8 +875,7 @@ install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/thisroot.sh
                           WORLD_READ
               DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/memprobe
-              ${CMAKE_BINARY_DIR}/installtree/root-config
+install(FILES ${CMAKE_BINARY_DIR}/installtree/root-config
               ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/roots
               ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/proofserv
               PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
